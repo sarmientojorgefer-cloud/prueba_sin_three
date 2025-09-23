@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Visor SE.glb + casa.glb (sincronía de cámara, Casa fija)</title>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    html,body { margin:0; height:100%; background:#111; color:#eee; font-family:Arial, sans-serif; }
+    #app { height:100vh; display:flex; flex-direction:column; }
+    #view-wrap { flex:1; position:relative; overflow:hidden; }
+    .mv { width:100%; height:100%; background-color:#222; border:none; }
+    .superposed #viewerSE,
+    .superposed #viewerCasa {
+      position:absolute; top:0; left:0; width:100%; height:100%;
+    }
+    .superposed .top { z-index:4; pointer-events:auto; }
+    .superposed .bottom { z-index:2; pointer-events:none; }
+    #ui {
+      position:absolute; left:12px; top:12px; z-index:10;
+      background:rgba(0,0,0,0.6); padding:12px; border-radius:8px; width:340px;
+    }
+    #ui h3 { margin:0 0 8px 0; font-size:16px; }
+    label { display:flex; align-items:center; gap:10px; margin:6px 0; font-size:14px; }
+    input[type="color"] { width:40px; height:28px; border:none; }
+    input[type="range"] { width:160px; }
+    select, button { font-size:13px; }
+    .small { font-size:12px; color:#ccc; margin-top:6px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="view-wrap" class="superposed">
+    <!-- SE -->
+    <model-viewer id="viewerSE" class="mv top"
+      src="SE.glb" alt="SE"
+      camera-controls
+      exposure="1" shadow-intensity="1">
+    </model-viewer>
+
+    <!-- Casa -->
+    <model-viewer id="viewerCasa" class="mv bottom"
+      src="SE.glb" alt="Casa"
+      exposure="1" shadow-intensity="1">
+    </model-viewer>
+
+    <!-- UI -->
+    <div id="ui">
+      <h3>Controles</h3>
+
+      <label>📐 Layout:
+        <select id="layout">
+          <option value="superposed">Superpuestos</option>
+        </select>
+      </label>
+
+      <label>🤖 Color SE:
+        <input id="colorSE" type="color" value="#ff0000">
+      </label>
+      <label>🏠 Color Casa:
+        <input id="colorCasa" type="color" value="#00ff00">
+      </label>
+      <label>🌌 Fondo:
+        <input id="bgColor" type="color" value="#222222">
+      </label>
+
+      <h4>🔴 SE (rojo)</h4>
+      <label>X:
+        <input id="offsetXSE" type="range" min="-200" max="200" value="0">
+      </label>
+      <label>Y:
+        <input id="offsetYSE" type="range" min="-200" max="200" value="0">
+      </label>
+      <label>Opacidad:
+        <input id="opacitySE" type="range" min="0" max="1" step="0.01" value="1">
+      </label>
+
+      <h4>🟢 Casa (verde)</h4>
+      <label>X:
+        <input id="offsetXCasa" type="range" min="-200" max="200" value="0">
+      </label>
+      <label>Y:
+        <input id="offsetYCasa" type="range" min="-200" max="200" value="0">
+      </label>
+      <label>Opacidad:
+        <input id="opacityCasa" type="range" min="0" max="1" step="0.01" value="1">
+      </label>
+
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button id="bringCasaTop">Casa arriba</button>
+        <button id="bringSETop">SE arriba</button>
+      </div>
+
+      <div class="small">Coloca <b>SE.glb</b> y <b>casa.glb</b> en la misma carpeta.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const viewerSE   = document.getElementById('viewerSE');
+const viewerCasa = document.getElementById('viewerCasa');
+
+// 🎨 Colores
+function hexToNormalizedRgb(hex) {
+  const bigint = parseInt(hex.slice(1), 16);
+  return [((bigint>>16)&255)/255, ((bigint>>8)&255)/255, (bigint&255)/255];
+}
+function applyColor(viewer, hex) {
+  if (!viewer.model || !viewer.model.materials) return;
+  const [r,g,b] = hexToNormalizedRgb(hex);
+  viewer.model.materials.forEach(mat=>{
+    if (mat.pbrMetallicRoughness) mat.pbrMetallicRoughness.setBaseColorFactor([r,g,b,1]);
+  });
+}
+
+colorSE.addEventListener('input', e=>applyColor(viewerSE,e.target.value));
+colorCasa.addEventListener('input', e=>applyColor(viewerCasa,e.target.value));
+viewerSE.addEventListener('load', ()=>applyColor(viewerSE, colorSE.value));
+viewerCasa.addEventListener('load', ()=>applyColor(viewerCasa, colorCasa.value));
+bgColor.addEventListener('input', e=>{
+  viewerSE.style.backgroundColor = e.target.value;
+  viewerCasa.style.backgroundColor = e.target.value;
+});
+
+// 📦 Desplazamiento y opacidad
+function updateTransform(v,x,y){ v.style.transform=`translate(${x}px,${y}px)`; }
+offsetXSE.addEventListener('input', ()=>updateTransform(viewerSE, offsetXSE.value, offsetYSE.value));
+offsetYSE.addEventListener('input', ()=>updateTransform(viewerSE, offsetXSE.value, offsetYSE.value));
+offsetXCasa.addEventListener('input', ()=>updateTransform(viewerCasa, offsetXCasa.value, offsetYCasa.value));
+offsetYCasa.addEventListener('input', ()=>updateTransform(viewerCasa, offsetXCasa.value, offsetYCasa.value));
+opacitySE.addEventListener('input', e=>viewerSE.style.opacity=e.target.value);
+opacityCasa.addEventListener('input', e=>viewerCasa.style.opacity=e.target.value);
+
+// 🔀 Bring to top
+bringCasaTop.addEventListener('click',()=>{
+  viewerCasa.classList.add('top'); viewerCasa.classList.remove('bottom');
+  viewerSE.classList.add('bottom'); viewerSE.classList.remove('top');
+});
+bringSETop.addEventListener('click',()=>{
+  viewerSE.classList.add('top'); viewerSE.classList.remove('bottom');
+  viewerCasa.classList.add('bottom'); viewerCasa.classList.remove('top');
+});
+
+// 🎥 Sincronizar cámaras (SE controla, Casa copia)
+function syncCamera() {
+  const orbit  = viewerSE.getCameraOrbit();
+  const target = viewerSE.getCameraTarget();
+  const fov    = viewerSE.getFieldOfView();
+  viewerCasa.cameraOrbit  = orbit.toString();
+  viewerCasa.cameraTarget = target.toString();
+  viewerCasa.fieldOfView  = fov.toString();
+}
+viewerSE.addEventListener('camera-change', syncCamera);
+</script>
+</body>
+</html>
